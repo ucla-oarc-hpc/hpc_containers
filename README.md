@@ -77,4 +77,9 @@ These rstudio images were built using [Rocker](https://www.rocker-project.org)
 
 - peridigm.def
 
+## MIDAS
+
+[MIDAS](https://github.com/snayfach/MIDAS)
+
+- MIDAS-mod.def 
 
