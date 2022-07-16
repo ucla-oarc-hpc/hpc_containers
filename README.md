@@ -83,3 +83,10 @@ These rstudio images were built using [Rocker](https://www.rocker-project.org)
 
 - MIDAS-mod.def 
 
+## Prismatic
+
+[Prismatic](https://prism-em.com/)
+
+- prismatic-v2.0.def 
+
+
