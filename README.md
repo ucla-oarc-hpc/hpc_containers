@@ -71,3 +71,10 @@ These rstudio images were built using [Rocker](https://www.rocker-project.org)
 - Dockerfile-H2-rstudio-4.1.0
 - Dockerfile-H2-rstudio-4.0.5
 
+## Peridigm
+
+[Peridigm](https://github.com/peridigm/peridigm)
+
+- peridigm.def
+
+
