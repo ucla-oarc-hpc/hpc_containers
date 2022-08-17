@@ -89,4 +89,8 @@ These rstudio images were built using [Rocker](https://www.rocker-project.org)
 
 - prismatic-v2.0.def 
 
+## RheoTool
 
+[RheoTool](https://github.com/fppimenta/rheoTool)
+
+- rheotool-2.0.def

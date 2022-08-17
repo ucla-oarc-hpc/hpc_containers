@@ -1,0 +1,68 @@
+Bootstrap: docker
+From: openfoam/openfoam7-paraview56
+
+%help
+This container is for using RheoTool
+https://github.com/fppimenta/rheoTool
+
+This image uses docker://openfoam/openfoam7-paraview56
+The WM_PROJECT_DIR is set to /opt/openfoam7
+
+%labels
+Author Charles Peterson <cpeterson@ucla.edu>
+
+%post
+export DEBIAN_FRONTEND=noninteractive
+export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+export SINGULARITY_SHELL=/bin/bash
+export SHELL=/bin/bash
+apt -y update
+apt install -y  libatlas-base-dev libblas-dev liblapack-dev flex bison git make cmake gfortran
+echo "export FOAM_INST_DIR=/opt ; . /opt/openfoam7/etc/bashrc" >> $SINGULARITY_ENVIRONMENT
+
+bash -c 'source /opt/openfoam7/etc/bashrc
+export FOAM_INST_DIR=/opt
+cd /opt
+curl -SL https://github.com/fppimenta/rheoTool/archive/refs/tags/v5.0.tar.gz | tar xzf -
+
+export EigenV="3.2.9"
+curl -SL https://gitlab.com/libeigen/eigen/-/archive/${EigenV}/eigen-${EigenV}.tar.gz | tar xzf -
+export EIGEN_RHEO=/opt/eigen-${EigenV}
+
+export PetscV="3.13.3" 
+curl -SL http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-$PetscV.tar.gz | tar xzf -
+cd petsc-${PetscV}
+
+./configure --with-debugging=0 --download-hypre --download-parmetis --download-metis --download-ptscotch --download-mumps --download-scalapack --with-precision=double --with-shared-libraries=1 --with-scalar-type=real --with-fc=mpif90 --with-cc=mpicc --with-cxx=mpic++ CXX_LINKER_FLAGS=-Wl,--no-as-needed CFLAGS="-g -O2 -fPIC -fstack-protector-strong -Wformat -Werror=format-security" CXXFLAGS="-g -O2 -fPIC -fstack-protector-strong -Wformat -Werror=format-security" FCFLAGS="-g -O2 -fstack-protector-strong" FFLAGS="-g -O2 -fstack-protector-strong" CPPFLAGS="-Wdate-time -D_FORTIFY_SOURCE=2" LDFLAGS="-Wl,-Bsymbolic-functions -Wl,-z,relro" MAKEFLAGS=w
+
+make PETSC_DIR=/opt/petsc-${PetscV} PETSC_ARCH=arch-linux2-c-opt all
+
+export PETSC_DIR=/opt/petsc-${PetscV}/arch-linux2-c-opt
+export PETSC_ARCH=arch-linux2-c-opt
+export LD_LIBRARY_PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/lib:$LIBRARY_PATH
+export PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/bin:$PATH
+export CPATH=/opt/petsc-${PetscV}/include:${CPATH}
+
+
+export FOAM_USER_LIBBIN=$FOAM_LIBBIN
+export FOAM_USER_APPBIN=$FOAM_APPBIN
+cd /opt/rheoTool-5.0/of70/src
+./Allwmake
+
+'
+
+%environment
+export EigenV="3.2.9"
+export EIGEN_RHEO=/opt/eigen-${EigenV}
+export PetscV="3.13.3"
+export PETSC_DIR=/opt/petsc-${PetscV}/arch-linux2-c-opt
+export PETSC_ARCH=arch-linux2-c-opt
+export LD_LIBRARY_PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/lib:$LIBRARY_PATH
+export PATH=/opt/petsc-${PetscV}/arch-linux2-c-opt/bin:$PATH
+export CPATH=/opt/petsc-${PetscV}/include:${CPATH}
+
+%runscript
+exec "$@"
+
