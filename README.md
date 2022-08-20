@@ -93,4 +93,4 @@ These rstudio images were built using [Rocker](https://www.rocker-project.org)
 
 [RheoTool](https://github.com/fppimenta/rheoTool)
 
-- rheotool-2.0.def
+- rheotool-5.0.def
