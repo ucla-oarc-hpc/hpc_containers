@@ -1,0 +1,116 @@
+# OpenSees
+# https://opensees.berkeley.edu/
+# OpenSeesMP and OpenSeespy
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 8/2022
+FROM oarcrtg/h2-build:ubuntu20.04-gcc8.5.0-oneapi2022.1.2 as build
+RUN bupLD=$LD_LIBRARY_PATH ; unset LD_LIBRARY_PATH ; apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    wget python-dev python3-pip libhdf5-dev git libmysqlclient-dev tcl-dev make gcc-multilib tk-dev flex bison libbz2-dev zlib1g \
+    && export LD_LIBRARY_PATH=$bupLD
+
+
+
+ENV PATH=/apps/python/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/python/lib:$LD_LIBRARY_PATH
+
+COPY ./openseesmp-makescotch /tmp/openseesmp-makescotch
+RUN cd /tmp ; wget https://gforge.inria.fr/frs/download.php/file/37622/scotch_6.0.6.tar.gz \
+   && tar -vxf scotch_6.0.6.tar.gz \
+   && cd scotch_6.0.6/src ; mkdir -p /apps/scotch \
+   && mv /tmp/openseesmp-makescotch ./Makefile.inc \
+   && sed -i 's/\/usr\/local/\/apps\/scotch/g' Makefile \
+   && make ptesmumps ; make install  \
+   && cd /tmp ; rm -rf scotch* 
+
+RUN cd /tmp ; git clone https://github.com/KarypisLab/GKlib \
+    && cd GKlib \
+    && make config cc=icc prefix=/apps/GKlib \
+    && make ; make install \
+    && cd /tmp ; rm -rf GKlib
+
+ENV PATH=/apps/GKlib/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/GKlib/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/GKlib/lib:$LIBRARY_PATH
+ENV CPATH=/apps/GKlib/include:$CPATH
+
+RUN cd /tmp ; git clone https://github.com/KarypisLab/METIS \ 
+   && cd METIS \
+   && make config shared=1 cc=icc prefix=/apps/metis \
+   && make ; make install \
+   && cd /tmp ; rm -rf METIS
+
+ENV PATH=/apps/metis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/metis/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/metis/lib:$LIBRARY_PATH
+ENV CPATH=/apps/metis/include:$CPATH
+
+
+RUN cd /tmp ; git clone https://github.com/KarypisLab/ParMETIS.git \
+    && cd ParMETIS/ \
+    && make config openmp=-qopenmp cc=mpiicc cxx=mpiicpc prefix=/apps/parmetis \
+    && make ; make install \
+    && cd /tmp ; rm -rf ParMETIS
+
+ENV PATH=/apps/parmetis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/parmetis/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/parmetis/lib:$LIBRARY_PATH
+ENV CPATH=/apps/parmetis/include:$CPATH
+
+COPY ./openseesmp-makemumps /tmp/openseesmp-makemumps
+RUN cd /tmp ; git clone https://github.com/cfwen/mumps \ 
+    && cd mumps ; mkdir lib \
+    && mv /tmp/openseesmp-makemumps ./Makefile.inc \
+    && make  \
+    && mkdir -pv /apps/mumps \
+    && cp -r lib /apps/mumps \
+    && cp -r include /apps/mumps \
+    && cd /tmp ; rm -rf mumps*  
+
+COPY ./openseesmp-makeopenseesmp /tmp/openseesmp-makeopenseesmp
+RUN cd /tmp ; git clone https://github.com/OpenSees/OpenSees \
+    && cd OpenSees ; git checkout 727614366c47e71c32448825abb7895543c4631b \
+    && mkdir -pv /tmp/OpenSees/lib \
+    && mkdir -pv /tmp/OpenSees/bin \
+    && mkdir -pv /apps/openseesmp \
+    && cp /tmp/openseesmp-makeopenseesmp ./Makefile.def \
+    && make \
+    && cp -r bin /apps/openseesmp \
+    && cp -r lib /apps/openseesmp \
+    && cd /tmp ; rm -rf OpenSees*
+
+RUN cd /tmp ; git clone https://github.com/OpenSees/OpenSees \
+    && cd OpenSees ; git checkout 727614366c47e71c32448825abb7895543c4631b \
+    && mkdir -pv /tmp/OpenSees/lib \
+    && mkdir -pv /tmp/OpenSees/bin \
+    && mkdir -pv /apps/openseessp \
+    && cp /tmp/openseesmp-makeopenseesmp ./Makefile.def \
+    && sed -i 's/OpenSeesMP/OpenSeesSP/g' Makefile.def \
+    && sed -i 's/D_PARALLEL_INTERPRETERS/D_PARALLEL_PROCESSING/g' Makefile.def \
+    && sed -i 's/PARALLEL_INTERPRETERS/PARALLEL/g' Makefile.def \
+    && make \
+    && cp -r bin /apps/openseessp \
+    && cp -r lib /apps/openseessp \
+    && cd /tmp ; rm -rf OpenSees*
+
+
+
+#
+FROM docker.io/oarcrtg/h2-run:ubuntu20.04-gcc8.5.0-oneapi2022.1.2
+    
+RUN bupLD=$LD_LIBRARY_PATH ; unset LD_LIBRARY_PATH ; apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    vim less python-dev python3-pip libhdf5-dev git libmysqlclient-dev tcl-dev make gcc-multilib tk-dev flex bison libbz2-dev zlib1g \
+    && export LD_LIBRARY_PATH=$bupLD
+
+COPY --from=build /apps/  /apps/
+ENV PATH=/apps/parmetis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/parmetis/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/metis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/metis/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/GKlib/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/GKlib/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/apps/mumps/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/openseessp/bin:/apps/openseesmp/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/openseesmp/lib:/apps/openseessp/lib:$LD_LIBRARY_PATH
+
