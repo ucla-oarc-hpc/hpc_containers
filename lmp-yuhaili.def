@@ -1,0 +1,16 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%post
+    apt-get update 
+    printf "Y\n" | apt-get install lammps
+
+%runscript
+    echo "Installed LAMMPS"
+
+%labels
+    Author Yuhai Li
+    Email yuhaili@g.ucla.edu
+
+%help
+    This is a container used in PARISLab to generate configurations file for porous material simulations.
