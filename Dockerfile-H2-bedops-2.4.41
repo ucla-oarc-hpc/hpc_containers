@@ -1,0 +1,22 @@
+# Dockerfile for BEDOPS build for Hoffman2
+# Charles Peterson <cpeterson@oarc.ucla.edu>
+# Created 11/2022
+#
+# This increasing the TOKENS MAX LENGTH as suggested in 
+# https://www.biostars.org/p/283321/
+#
+#
+FROM docker.io/ubuntu:22.04
+
+RUN apt update ; apt-get install -y --no-install-recommends  \
+                git gcc g++ libc6-dev make ca-certificates bzip2
+
+RUN git clone https://github.com/bedops/bedops \
+    && cd bedops \
+    && git checkout v2.4.41 \
+    && sed -i 's/REST_EXPONENT 15/REST_EXPONENT 18/g' ./interfaces/general-headers/suite/BEDOPS.Constants.hpp \
+    && make all ; make install_all \
+    && cp bin/* /usr/local/bin \
+    && cd .. ; rm -rf bedops
+
+
