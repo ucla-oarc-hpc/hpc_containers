@@ -15,6 +15,7 @@ RUN git clone https://github.com/bedops/bedops \
     && cd bedops \
     && git checkout v2.4.41 \
     && sed -i 's/REST_EXPONENT 15/REST_EXPONENT 18/g' ./interfaces/general-headers/suite/BEDOPS.Constants.hpp \
+    && sed -i 's/define TOKENS_MAX_LENGTH INT_TOKENS_MAX_LENGTH/define TOKENS_MAX_LENGTH (100*INT_TOKENS_MAX_LENGTH)/g' ./interfaces/general-headers/suite/BEDOPS.Constants.hpp \
     && make all ; make install_all \
     && cp bin/* /usr/local/bin \
     && cd .. ; rm -rf bedops
