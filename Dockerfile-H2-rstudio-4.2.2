@@ -1,0 +1,22 @@
+# Rstudio
+#
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 11/2022
+FROM docker.io/rocker/rstudio:4.2.2
+RUN apt update ; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config zlib1g-dev openssl libssl-dev wget make git vim less libxt6 libhdf5-dev
+
+RUN apt update \
+    && DEBIAN_FRONTEND=noninteractive apt install -y \
+        curl iproute2 bc libxml2 libxml2-dev libglpk-dev \
+        libv8-dev jags libcairo2-dev libbz2-dev liblzma-dev \
+        libmagick++-dev \
+        libmariadb-dev libmariadb-dev-compat libmariadb-dev  \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV R_VER="4.2.2"
+RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_${R_VER}" > /etc/rstudio/rsession.conf
+RUN mkdir -pv /apps/rstudio
+COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
+RUN chmod 755 /apps/rstudio/rstudio-startup.sh
+ENTRYPOINT /apps/rstudio/rstudio-startup.sh
+
