@@ -1,0 +1,38 @@
+# Rstudio
+#
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 1/2023
+FROM docker.io/ubuntu:20.04
+
+RUN apt update \
+    && DEBIAN_FRONTEND=noninteractive apt install -y \
+        wget python3-dev python-dev  libglib2.0-dev libgtk2.0-dev fftw3-dev \
+        libgtkglext1-dev libglu1-mesa-dev libxmu-dev libxt-dev \
+        software-properties-common \
+    && add-apt-repository ppa:gwyddion-spm/ppa -y ; apt update \
+    && apt install -y gwyddion \
+    && rm -rf /var/lib/apt/lists/*
+
+
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \ 
+   && dpkg -i cuda-keyring_1.0-1_all.deb \
+   && apt-get update ; apt-get -y install cuda \
+   && rm -rf /var/lib/apt/lists/*
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:$LD_LIBRARY_PATH
+
+
+RUN wget http://sourceforge.net/projects/gwyddion/files/gwyddion/2.62/gwyddion-2.62.tar.xz \
+    && tar -vxf gwyddion-2.62.tar.xz ; rm gwyddion-2.62.tar.xz \ 
+    && cd gwyddion-2.62 ; ./configure ; make ; make install \ 
+    && cd .. ; rm -rf gwyddion-2.62
+
+RUN wget https://sourceforge.net/projects/gsvit/files/1.9.4/gsvit-1.9.4.tar.gz \
+    && tar -vxf gsvit-1.9.4.tar.gz ; rm gsvit-1.9.4.tar.gz \
+    && cd gsvit-1.9.4 \
+    && ./configure ; make ; make install \
+    && cd .. ; rm -rf gsvit-1.9.4
+
+
