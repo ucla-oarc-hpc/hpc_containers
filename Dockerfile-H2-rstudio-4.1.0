@@ -13,7 +13,7 @@ RUN apt update \
         tcl-dev tk-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ENV R_VER="4.2.2"
+ENV R_VER="4.1.0"
 RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_4.1.0" > /etc/rstudio/rsession.conf
 RUN mkdir -pv /apps/rstudio
 COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
