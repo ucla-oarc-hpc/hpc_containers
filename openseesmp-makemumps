@@ -1,14 +1,14 @@
 SCOTCHDIR  = /apps/scotch
 ISCOTCH    = -I$(SCOTCHDIR)/include
 LSCOTCH    = -L$(SCOTCHDIR)/lib -lptesmumps -lptscotch -lptscotcherr -lscotch 
-LPORDDIR = /tmp/MUMPS_5.0.2/PORD/lib/
-IPORD    = -I/tmp/MUMPS_5.0.2/PORD/include/
+LPORDDIR = /tmp/mumps/PORD/lib/
+IPORD    = -I/tmp/mumps/PORD/include/
 LPORD    = -L$(LPORDDIR) -lpord
 LMETISDIR = /apps/metis
 IMETIS    = -I$(LMETISDIR)/include
 LPARMETISDIR = /apps/parmetis
 IPARMETIS    = -I$(LPARMETISDIR)/include
-LMETIS    = -L$(LMETISDIR)/lib -lmetis
+LMETIS    = -L$(LMETISDIR)/lib -lmetis /apps/GKlib/lib/libGKlib.a
 LPARMETIS = -L$(LPARMETISDIR)/lib -lparmetis
 ORDERINGSF = -Dscotch -Dmetis -Dpord -Dptscotch -Dparmetis 
 ORDERINGSC  = $(ORDERINGSF) 

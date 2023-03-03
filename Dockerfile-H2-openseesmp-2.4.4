@@ -1,0 +1,186 @@
+# OpenSees
+# https://opensees.berkeley.edu/
+# OpenSeesMP and OpenSeespy
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 2/2023
+#
+#
+
+FROM ubuntu:18.04 as build
+
+RUN mkdir -p /opt/build && mkdir -p /opt/dist
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl && \
+  rm -rf /var/lib/apt/lists/*
+
+# install cmake
+RUN cd /opt/build && \
+    curl -LO https://github.com/Kitware/CMake/releases/download/v3.24.3/cmake-3.24.3-linux-x86_64.sh && \
+    mkdir -p /opt/dist//usr/local && \
+    /bin/bash cmake-3.24.3-linux-x86_64.sh --prefix=/usr/local --skip-license
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl ca-certificates gpg-agent software-properties-common && \
+  rm -rf /var/lib/apt/lists/*
+# repository to install Intel(R) oneAPI Libraries
+RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB | apt-key add -
+RUN echo "deb [trusted=yes] https://apt.repos.intel.com/oneapi all main " > /etc/apt/sources.list.d/oneAPI.list
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl ca-certificates gpg-agent software-properties-common && \
+  rm -rf /var/lib/apt/lists/*
+# repository to install Intel(R) GPU drivers
+RUN curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | apt-key add -
+RUN echo "deb [trusted=yes arch=amd64] https://repositories.intel.com/graphics/ubuntu bionic main" > /etc/apt/sources.list.d/intel-graphics.list
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates build-essential pkg-config gnupg libarchive13 openssh-server openssh-client wget net-tools git intel-basekit-getting-started intel-oneapi-advisor intel-oneapi-ccl-devel intel-oneapi-common-licensing intel-oneapi-common-vars intel-oneapi-compiler-dpcpp-cpp intel-oneapi-dal-devel intel-oneapi-dev-utilities intel-oneapi-dnnl-devel intel-oneapi-dpcpp-debugger intel-oneapi-ipp-devel intel-oneapi-ippcp-devel intel-oneapi-libdpstd-devel intel-oneapi-mkl-devel intel-oneapi-onevpl-devel intel-oneapi-python intel-oneapi-tbb-devel intel-oneapi-vtune intel-opencl intel-level-zero-gpu level-zero level-zero-devel intel-hpckit-getting-started intel-oneapi-clck intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-compiler-fortran intel-oneapi-inspector intel-oneapi-itac intel-oneapi-mpi-devel  && \
+  rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates build-essential pkg-config gnupg libarchive13 openssh-server openssh-client wget net-tools git intel-basekit-getting-started intel-oneapi-advisor intel-oneapi-ccl-devel intel-oneapi-common-licensing intel-oneapi-common-vars intel-oneapi-compiler-dpcpp-cpp intel-oneapi-dal-devel intel-oneapi-dev-utilities intel-oneapi-dnnl-devel intel-oneapi-dpcpp-debugger intel-oneapi-ipp-devel intel-oneapi-ippcp-devel intel-oneapi-libdpstd-devel intel-oneapi-mkl-devel intel-oneapi-onevpl-devel intel-oneapi-python intel-oneapi-tbb-devel intel-oneapi-vtune intel-opencl intel-level-zero-gpu level-zero level-zero-devel  && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN  apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    gcc wget python-dev python3-pip libhdf5-dev git libmysqlclient-dev tcl8.5-dev make gcc-multilib tk8.5-dev flex bison libbz2-dev zlib1g 
+
+ENV PATH=/apps/python/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/python/lib:$LD_LIBRARY_PATH
+
+COPY ./openseesmp-makescotch /tmp/openseesmp-makescotch
+RUN . /opt/intel/oneapi/setvars.sh ; cd /tmp ; wget https://gforge.inria.fr/frs/download.php/file/37622/scotch_6.0.6.tar.gz \
+   && tar -vxf scotch_6.0.6.tar.gz \
+   && cd scotch_6.0.6/src ; mkdir -p /apps/scotch \
+   && mv /tmp/openseesmp-makescotch ./Makefile.inc \
+   && sed -i 's/\/usr\/local/\/apps\/scotch/g' Makefile \
+   && make ptesmumps ; make install  \
+   && cd /tmp ; rm -rf scotch* 
+
+RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/KarypisLab/GKlib \
+    && cd GKlib \
+    && make config cc=icc prefix=/apps/GKlib \
+    && make ; make install \
+    && cd /tmp ; rm -rf GKlib
+
+ENV PATH=/apps/GKlib/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/GKlib/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/GKlib/lib:$LIBRARY_PATH
+ENV CPATH=/apps/GKlib/include:$CPATH
+
+RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/KarypisLab/METIS \ 
+   && cd METIS \
+   && make config shared=1 cc=icc prefix=/apps/metis \
+   && make ; make install \
+   && cd /tmp ; rm -rf METIS
+
+ENV PATH=/apps/metis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/metis/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/metis/lib:$LIBRARY_PATH
+ENV CPATH=/apps/metis/include:$CPATH
+
+
+RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/KarypisLab/ParMETIS.git \
+    && cd ParMETIS/ \
+    && make config openmp=-qopenmp cc=mpiicc cxx=mpiicpc prefix=/apps/parmetis \
+    && make ; make install \
+    && cd /tmp ; rm -rf ParMETIS
+
+ENV PATH=/apps/parmetis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/parmetis/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH=/apps/parmetis/lib:$LIBRARY_PATH
+ENV CPATH=/apps/parmetis/include:$CPATH
+
+COPY ./openseesmp-makemumps /tmp/openseesmp-makemumps
+RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/cfwen/mumps \ 
+    && cd mumps ; mkdir lib \
+    && mv /tmp/openseesmp-makemumps ./Makefile.inc \
+    && make  \
+    && mkdir -pv /apps/mumps \
+    && cp -r lib /apps/mumps \
+    && cp -r include /apps/mumps \
+    && cd /tmp ; rm -rf mumps*  
+
+COPY ./openseesmp-makeopensees-2.4.4 /tmp/openseesmp-makeopenseesmp
+ENV  CPATH=/usr/include/tcl8.5:CPATH
+RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/OpenSees/OpenSees \
+    && cd OpenSees ; git checkout v2.4.4 \
+    && mkdir -pv /tmp/OpenSees/lib \
+    && mkdir -pv /tmp/OpenSees/bin \
+    && mkdir -pv /apps/openseesmp \
+    && cp /tmp/openseesmp-makeopenseesmp ./Makefile.def \
+    && make \
+    && cp -r bin /apps/openseesmp \
+    && cp -r lib /apps/openseesmp \
+    && cd /tmp ; rm -rf OpenSees*
+
+#RUN . /opt/intel/oneapi/setvars.sh  ; cd /tmp ; git clone https://github.com/OpenSees/OpenSees \
+#    && cd OpenSees ; git checkout v2.4.4 \
+#    && mkdir -pv /tmp/OpenSees/lib \
+#    && mkdir -pv /tmp/OpenSees/bin \
+#    && mkdir -pv /apps/openseessp \
+#    && cp /tmp/openseesmp-makeopenseesmp ./Makefile.def \
+#    && sed -i 's/OpenSeesMP/OpenSeesSP/g' Makefile.def \
+#    && sed -i 's/D_PARALLEL_INTERPRETERS/D_PARALLEL_PROCESSING/g' Makefile.def \
+#    && sed -i 's/PARALLEL_INTERPRETERS/PARALLEL/g' Makefile.def \
+#    && make \
+#    && cp -r bin /apps/openseessp \
+#    && cp -r lib /apps/openseessp \
+#    && cd /tmp ; rm -rf OpenSees*
+
+
+
+#
+
+FROM ubuntu:18.04
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl ca-certificates gpg-agent software-properties-common && \
+  rm -rf /var/lib/apt/lists/*
+# repository to install Intel(R) oneAPI Libraries
+RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB | apt-key add -
+RUN echo "deb [trusted=yes] https://apt.repos.intel.com/oneapi all main " > /etc/apt/sources.list.d/oneAPI.list
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl ca-certificates gpg-agent software-properties-common && \
+  rm -rf /var/lib/apt/lists/*
+# repository to install Intel(R) GPU drivers
+RUN curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | apt-key add -
+RUN echo "deb [trusted=yes arch=amd64] https://repositories.intel.com/graphics/ubuntu bionic main" > /etc/apt/sources.list.d/intel-graphics.list
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates build-essential pkg-config gnupg libarchive13 openssh-server openssh-client wget net-tools git intel-oneapi-runtime-ccl intel-oneapi-runtime-compilers intel-oneapi-runtime-dal intel-oneapi-runtime-dnnl intel-oneapi-runtime-dpcpp-cpp intel-oneapi-runtime-dpcpp-library intel-oneapi-runtime-fortran intel-oneapi-runtime-ipp intel-oneapi-runtime-ipp-crypto intel-oneapi-runtime-libs intel-oneapi-runtime-mkl intel-oneapi-runtime-mpi intel-oneapi-runtime-opencl intel-oneapi-runtime-openmp intel-oneapi-runtime-tbb intel-oneapi-runtime-vpl intel-opencl intel-level-zero-gpu level-zero level-zero-devel  && \
+  rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/dist /
+
+ENV LANG=C.UTF-8
+ENV LD_LIBRARY_PATH=/opt/intel/oneapi/lib
+
+RUN apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    vim less python-dev python3-pip libhdf5-dev git libmysqlclient-dev tcl8.5-dev make gcc-multilib tk8.5-dev flex bison libbz2-dev zlib1g
+RUN mkdir -p /opt/build && mkdir -p /opt/dist
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl && \
+  rm -rf /var/lib/apt/lists/*
+
+
+COPY --from=build /apps/  /apps/
+ENV PATH=/apps/parmetis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/parmetis/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/metis/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/metis/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/GKlib/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/GKlib/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/apps/mumps/lib:$LD_LIBRARY_PATH
+ENV PATH=/apps/openseessp/bin:/apps/openseesmp/bin:$PATH
+ENV LD_LIBRARY_PATH=/apps/openseesmp/lib:/apps/openseessp/lib:$LD_LIBRARY_PATH
+
