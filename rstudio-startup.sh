@@ -1,4 +1,4 @@
-rserverport=8787
+rserverport="${R_SERVER_PORT:-8787}"
 GREEN='\033[0;32m'
 NOCOLOR='\033[0m'
 checkport=`ss -tulpn | grep ":${rserverport}"`
