@@ -11,7 +11,7 @@ RUN apt update \
         libv8-dev jags libcairo2-dev libbz2-dev liblzma-dev \
         libmagick++-dev \
         tcl-dev tk-dev \
-        libicu-dev \
+        libproj-dev libicu-dev libgsl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV R_VER="4.3.0"
