@@ -1,0 +1,13 @@
+# BCL convert
+#
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 7/2023
+FROM docker.io/centos:7
+
+RUN yum update -y \
+        && yum install -y \
+        wget gdb
+
+RUN wget https://webdata.illumina.com/downloads/software/bcl-convert/bcl-convert-4.2.4-2.el7.x86_64.rpm \ 
+    && rpm --install bcl-convert-4.2.4-2.el7.x86_64.rpm
+
