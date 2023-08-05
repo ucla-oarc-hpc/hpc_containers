@@ -1,0 +1,140 @@
+Bootstrap: docker
+From: docker.io/rockylinux:8
+Stage: devel
+
+%post
+yum update -y  
+yum install -y file time which csh tcsh gcc gcc-c++ gcc-gfortran git  wget make cmake libcurl-devel zlib-devel m4 
+dnf --enablerepo=powertools install -y flex-devel bison-devel flex bison
+
+tee > /tmp/oneAPI.repo << EOF
+[oneAPI]
+name=Intel® oneAPI repository
+baseurl=https://yum.repos.intel.com/oneapi
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+EOF
+
+mv /tmp/oneAPI.repo /etc/yum.repos.d
+
+yum update -y \
+    && yum install -y  \
+       intel-basekit-2023.1.0  intel-hpckit-2023.1.0
+
+mkdir -pv /apps
+mkdir -pv /build
+
+bash -c "
+source /opt/intel/oneapi/setvars.sh
+export WRF_EM_CORE=1
+export WRF_NMM_CORE=0
+export WRF_DA_CORE=0
+export WRF_CHEM=1
+export WRF_KPP=1
+export BUFR=1
+export CRTM=1
+export NETCDF4=1
+export WRFIO_NCD_LARGE_FILE_SUPPORT=1
+export OMP_NUM_THREADS=1
+export FLEX_LIB_DIR=/usr/lib64
+
+wget https://invisible-island.net/archives/byacc/byacc-20100216.tgz
+tar -vxf byacc-20100216.tgz
+cd byacc-20100216
+./configure --prefix=/apps/byacc
+make ; make install
+export PATH=/apps/byacc/bin:\$PATH
+export YACC=\"/apps/byacc/bin/yacc -d\"
+
+cd /build
+git clone https://github.com/HDFGroup/hdf5
+cd hdf5
+git checkout hdf5-1_14_1
+./configure --with-zlib  --prefix=/apps/hdf5
+make ; make install  
+
+export LD_LIBRARY_PATH=/apps/hdf5/lib:\$LD_LIBRARY_PATH
+export CPATH=/apps/hdf5/include:\$CPATH
+export PATH=/apps/hdf5/bin:\$PATH
+
+export NETCDF_classic=1
+cd /build
+git clone https://github.com/Unidata/netcdf-c
+cd netcdf-c
+git checkout v4.7.2
+CPPFLAGS=\"-I/apps/hdf5/include -I/usr/include\" LDFLAGS=\"-L/apps/hdf5/lib -L/usr/lib\" ./configure --prefix=/apps/netcdf --enable-netcdf-4
+make ; make install
+
+export NETCDF=/apps/netcdf
+export PATH=\${NETCDF}/bin:\$PATH
+export CPATH=\${NETCDF}/include:\$CPATH
+export LD_LIBRARY_PATH=\${NETCDF}/lib:\$LD_LIBRARY_PATH
+
+cd /build
+git clone https://github.com/Unidata/netcdf-fortran
+cd netcdf-fortran ; git checkout v4.5.2 
+LDFLAGS=\"-L/apps/netcdf/lib -L/usr/lib\" CPPFLAGS=\"-I/usr/include -I/apps/netcdf/include\" ./configure --prefix=/apps/netcdf
+make ; make install
+
+cd /apps
+git clone https://github.com/wrf-model/WRF
+cd WRF ; git checkout v4.5.1 
+printf '35\n1\n' | ./configure
+./compile em_real >& log.file
+"
+
+Bootstrap: docker
+From: docker.io/rockylinux:8
+Stage: runtime
+
+%post
+yum update -y
+yum install -y file time  csh tcsh gcc gcc-c++ gcc-gfortran zlib-devel
+
+
+tee > /tmp/oneAPI.repo << EOF
+[oneAPI]
+name=Intel® oneAPI repository
+baseurl=https://yum.repos.intel.com/oneapi
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+EOF
+
+mv /tmp/oneAPI.repo /etc/yum.repos.d
+yum update -y \
+    && yum install -y  \
+       intel-basekit-runtime-2023.1.0  intel-hpckit-runtime-2023.1.0
+
+%files from devel
+  /apps  /apps
+
+%environment
+export LD_LIBRARY_PATH=/apps/hdf5/lib:$LD_LIBRARY_PATH
+export PATH=/apps/hdf5/bin:$PATH
+
+export NETCDF=/apps/netcdf
+export PATH=${NETCDF}/bin:$PATH
+export LD_LIBRARY_PATH=${NETCDF}/lib:$LD_LIBRARY_PATH
+
+export WRF_EM_CORE=1
+export WRF_NMM_CORE=0
+export WRF_DA_CORE=0
+export WRF_CHEM=1
+export WRF_KPP=1
+export BUFR=1
+export CRTM=1
+export NETCDF4=1
+export WRFIO_NCD_LARGE_FILE_SUPPORT=1
+export OMP_NUM_THREADS=1
+export FLEX_LIB_DIR=/usr/lib64
+export WRF_ROOT=/apps/WRF
+export PATH=/apps/WRF/main:/apps/WRF/run:$PATH
+
+%startscript
+exec bash -c "source /opt/intel/oneapi/setvars.sh
+$@"
+
