@@ -12,6 +12,7 @@ RUN apt update \
         libmagick++-dev \
         tcl-dev tk-dev \
         libgsl-dev \
+        libudunits2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV R_VER="4.1.0"
