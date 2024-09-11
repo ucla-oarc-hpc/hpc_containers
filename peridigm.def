@@ -12,24 +12,28 @@ Author Charles Peterson <cpeterson@oarc.ucla.edu>
 
 %post
 apt-get -yq --allow-releaseinfo-change update
-apt-get -yq install openmpi-bin openssh-server
+apt-get -yq install openmpi-bin openssh-server python3-dev cmake
 
 cd /tmp
 git clone https://github.com/peridigm/peridigm
 cd peridigm
 ##Checkout commit from 12/9/2021
-git checkout 57d7836bfb4234b3216cffc9798c96731c5c416c
 mkdir build ; cd build
 cmake \
 -D CMAKE_BUILD_TYPE:STRING=Release \
--D Trilinos_DIR:PATH=/usr/local/trilinos \
+-D Trilinos_DIR:PATH=/usr/local/trilinos/ \
 -D CMAKE_C_COMPILER:STRING=mpicc \
 -D CMAKE_CXX_COMPILER:STRING=mpicxx \
--D CMAKE_INSTALL_PREFIX=/usr/local/peridigm \
+-D BOOST_ROOT=/usr/local/boost/ \
+-D CMAKE_CXX_FLAGS:STRING="-O2 -Wall -std=c++11 -pedantic -Wno-long-long -ftrapv -Wno-deprecated"
 ..
 make ; make install
 cd /tmp
 rm -rf perdigm
+
+pip3 install netCDF4
+pip3 install pandas
+pip3 install numpy
 
 %environment
 export PATH=/usr/local/peridigm/bin:/usr/local/trilinos/bin:$PATH

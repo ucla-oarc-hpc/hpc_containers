@@ -1,0 +1,36 @@
+FROM rockylinux:8.9
+# Install libraries and clean all
+RUN dnf update ; dnf -y install numactl-libs.x86_64 \
+ passwd \
+ libXp \
+ libpng \
+ libXmu.x86_64 \
+ java-11-openjdk java-11-openjdk-devel \
+ libpng-devel libpng12 firefox expect
+RUN dnf update -y
+
+# Add group
+#RUN useradd -m sas
+#RUN groupadd -g 1001 sasstaff
+# Add sas user
+#RUN usermod -a -G sasstaff sas
+# Set default password by pointing to /etc/passwd
+#RUN echo -e "mypassword" | /usr/bin/passwd --stdin sas
+# Make the SASHome directory and add the TAR file
+RUN mkdir -p /usr/local/SASHome
+COPY sas  /
+RUN tar -vxf SAS94_Linux_64bit_TR.tar.gz
+COPY SASsetup.exp /Linux_64bit
+#RUN cd /Linux_64bit ; expect SASsetup.exp
+
+
+#./setup.sh -quiet -loglevel 2 -installsas
+#RUN chown -R sas:sasstaff /usr/local/SASHome
+EXPOSE 38080
+
+ENV PATH=/usr/local/SASHome/SASFoundation/9.4:/usr/local/SASHome/SASFoundation/9.4/bin:$PATH
+#RUN cd / ; rm -rf /Linux_64bit ; rm -rf SAS94_Linux_64bit_TR.tar.gz
+# Add startup script to start SAS Studio
+#ADD startup.sh /
+#ENTRYPOINT [“/startup.sh”]
+

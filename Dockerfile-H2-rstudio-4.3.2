@@ -4,19 +4,18 @@
 # Rstudio/R container for Hoffman2
 # Built with oneAPI/MKL
 # # Created 8/2023
-FROM docker.io/rockylinux:9.2
-RUN dnf update -y ; dnf install epel-release -y ; dnf install -y pkg-config zlib openssl wget make git vim less hdf5 gcc gfortran g++ ca-certificates  cmake ant readline readline-devel  libX11-devel libXt-devel zlib-devel bzip2-devel xz-devel pcre2-devel curl-devel
+FROM docker.io/rocker/rstudio:4.3.0
+RUN apt update && apt install -y pkg-config zlib1g zlib1g-dev openssl wget make git vim less libhdf5-dev gcc gfortran g++ ca-certificates cmake ant libreadline-dev libx11-dev libxt-dev bzip2 xz-utils libpcre2-dev libcurl4-openssl-dev gnupg curl libbz2-dev liblzma-dev iproute2
+RUN apt update -y && apt install -y fontconfig libfreetype6-dev libxml2-dev libproj-dev libgsl-dev bc \
+                    libfontconfig1-dev pkg-config libharfbuzz-dev libfribidi-dev \
+                   webp-pixbuf-loader zstd libzstd-dev libwebp-dev \
+                   libgdal-dev libudunits2-dev xorg libx11-dev libxt-dev libjpeg-dev libpng-dev libcairo2-dev libglpk-dev fftw3-dev patch libhdf5-serial-dev
 
-RUN echo "[oneAPI]" > /tmp/oneAPI.repo && \
-    echo "name=Intel® oneAPI repository" >> /tmp/oneAPI.repo && \
-    echo "baseurl=https://yum.repos.intel.com/oneapi" >> /tmp/oneAPI.repo && \
-    echo "enabled=1" >> /tmp/oneAPI.repo && \
-    echo "gpgcheck=1" >> /tmp/oneAPI.repo && \
-    echo "repo_gpgcheck=1" >> /tmp/oneAPI.repo && \
-    echo "gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" >> /tmp/oneAPI.repo && \
-    mv /tmp/oneAPI.repo /etc/yum.repos.d/ && \
-    dnf install -y intel-basekit intel-hpckit
+RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor |  tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
 
+RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+RUN apt update -y ; apt install -y intel-basekit intel-hpckit
 ENV R_VERSION=4.3.2
 ENV MKL_INTERFACE_LAYER=GNU,LP64 
 ENV MKL_THREADING_LAYER=GNU
@@ -30,15 +29,9 @@ RUN bash -c "source /opt/intel/oneapi/setvars.sh \
      &&  cd R-${R_VERSION}  \
      && CXX11=g++ CXX14=g++ CXX17=g++ CXX20=g++ CXX=g++ CC=gcc FC=gfortran ./configure  \ 
         --with-blas='-L${MKLROOT}/lib/intel64 -lmkl_gf_lp64 -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm -ldl' \
-       --enable-R-shlib --with-lapack  --enable-threads=posix --enable-memory-profiling \
+       --enable-R-shlib --with-x=yes --with-lapack  --enable-threads=posix --enable-memory-profiling \
      && make ; make install "
        
-
-RUN wget https://download2.rstudio.org/server/rhel9/x86_64/rstudio-server-rhel-2023.09.1-494-x86_64.rpm \
-    && yum install -y rstudio-server-rhel-2023.09.1-494-x86_64.rpm \ 
-    && ln -fs /usr/lib/rstudio-server/bin/rstudio-server /usr/local/bin \
-    && ln -fs /usr/lib/rstudio-server/bin/rserver /usr/local/bin \
-    && mkdir -p /etc/R
 
 
 ENV export R_BIN=$(which R)
@@ -51,5 +44,8 @@ RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_4.3.2" > /etc/rstudio/rsession.co
 RUN mkdir -pv /apps/rstudio
 COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
 RUN chmod 755 /apps/rstudio/rstudio-startup.sh
-ENTRYPOINT bash -c " source /opt/intel/oneapi/setvars.sh --force ; /apps/rstudio/rstudio-startup.sh"
+# Link the MKL libraries to /lib/intel64
+RUN mkdir -p /lib/intel64/ ; ln -s /opt/intel/oneapi/mkl/2024.0/lib/* /lib/intel64/
+
+ENTRYPOINT bash -c "source /opt/intel/oneapi/setvars.sh --force ; /apps/rstudio/rstudio-startup.sh"
 #

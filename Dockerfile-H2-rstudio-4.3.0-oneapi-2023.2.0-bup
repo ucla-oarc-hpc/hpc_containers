@@ -1,0 +1,34 @@
+# Rstudio
+#
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 4/2023
+FROM docker.io/rocker/rstudio:4.3.0
+RUN apt update ; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config zlib1g-dev openssl libssl-dev wget make git vim less libxt6 libhdf5-dev
+
+RUN apt update \
+    && DEBIAN_FRONTEND=noninteractive apt install -y \
+        curl wget iproute2 bc libxml2 libxml2-dev libglpk-dev \
+        libv8-dev jags libcairo2-dev libbz2-dev liblzma-dev \
+        libmagick++-dev \
+        tcl-dev tk-dev \
+        libgdal-dev libproj-dev libicu-dev libgsl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+RUN wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/992857b9-624c-45de-9701-f6445d845359/l_BaseKit_p_2023.2.0.49397.sh \
+  && bash l_BaseKit_p_2023.2.0.49397.sh -a --silent --eula accept --components intel.oneapi.lin.tbb.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dpl:intel.oneapi.lin.dpcpp_dbg \
+  && rm l_BaseKit_p_2023.2.0.49397.sh \
+  && wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0722521a-34b5-4c41-af3f-d5d14e88248d/l_HPCKit_p_2023.2.0.49440.sh \
+  && bash l_HPCKit_p_2023.2.0.49440.sh -a --silent --eula accept --components intel.oneapi.lin.mpi.devel:intel.oneapi.lin.ifort-compiler:intel.oneapi.lin.dpcpp-cpp-compiler-pro \
+  && rm l_HPCKit_p_2023.2.0.49440.sh
+
+
+ENV R_VER="4.3.0"
+RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_4.3.0" > /etc/rstudio/rsession.conf
+RUN mkdir -pv /apps/rstudio
+COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
+RUN chmod 755 /apps/rstudio/rstudio-startup.sh
+ENV MKL_INTERFACE_LAYER=GNU,LP64
+ENV MKL_THREADING_LAYER=GNU
+ENTRYPOINT bash -c "export MKL_INTERFACE_LAYER=GNU,LP64 ; export MKL_THREADING_LAYER=GNU ; source /opt/intel/oneapi/setvars.sh --force ; /apps/rstudio/rstudio-startup.sh"
+

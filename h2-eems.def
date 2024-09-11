@@ -1,0 +1,38 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%post
+DEBIAN_FRONTEND=noninteractive
+# Install supporting packages
+apt-get update   
+apt-get install -yq --no-install-recommends wget libreadline-dev ca-certificates cmake make pkg-config zlib1g zlib1g-dev openssl gnupg2 g++ gfortran gcc  csh libxml2-dev m4 curl libcurl4-gnutls-dev git libboost-all-dev libeigen3-dev 
+
+
+export CPATH=/usr/include/eigen3:$CPATH
+ln -s /usr/bin/python3-config /usr/bin/python-config
+ln -s /usr/bin/python3 /usr/bin/python
+
+git clone https://github.com/mfranberg/libplinkio
+cd libplinkio
+git checkout 781e9ee37076
+mkdir build
+cd build
+../configure 
+make && make check && make install
+
+mkdir -pv /apps
+cd /apps
+git clone https://github.com/dipetkov/eems
+cd eems/runeems_snps/src
+make linux
+
+cd /apps/eems/bed2diffs/src
+make linux
+
+%environment
+export PATH=/apps/eems/runeems_snps/src:/apps/eems/bed2diffs/src:$PATH
+
+%runscript
+#!/bin/bash
+exec "$@"
+

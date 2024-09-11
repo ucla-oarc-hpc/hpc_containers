@@ -1,0 +1,59 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%post
+bash << EOF
+export DEBIAN_FRONTEND=noninteractive
+apt update && apt install -y pkg-config zlib1g zlib1g-dev openssl wget make git vim less libhdf5-dev gcc gfortran g++ ca-certificates cmake ant libreadline-dev libx11-dev libxt-dev bzip2 xz-utils libpcre2-dev libcurl4-openssl-dev gnupg curl libbz2-dev liblzma-dev python3-dev libfftw3-dev libeigen3-dev
+
+wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor |  tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+apt update -y ; apt install -y intel-basekit intel-hpckit
+
+# Source the oneAPI environment
+source /opt/intel/oneapi/setvars.sh
+export I_MPI_CXX=icpx
+export I_MPI_CC=icx
+export I_MPI_F90=ifx
+export I_MPI_F77=ifx
+
+#Build libint
+#wget https://github.com/cp2k/libint-cp2k/releases/download/v2.6.0/libint-v2.6.0-cp2k-lmax-4.tgz
+#tar -vxf libint-v2.6.0-cp2k-lmax-4.tgz
+#cd libint-v2.6.0-cp2k-lmax-4
+#./configure --enable-fortran=yes
+#make fortran ; make install
+
+
+wget https://github.com/cp2k/libint-cp2k/releases/download/v2.6.0/libint-v2.6.0-cp2k-lmax-7.tgz
+tar -vxf libint-v2.6.0-cp2k-lmax-7.tgz
+cd libint-v2.6.0-cp2k-lmax-7
+mkdir build ; cd build
+FC=ifx CC=icx CXX=icpx cmake .. -DENABLE_FORTRAN=TRUE 
+make ; make install
+cd / ; rm -rf libint-v2.6.0-cp2k-lmax-7 ; rm -rf libint-v2.6.0-cp2k-lmax-7.tgz
+
+wget https://github.com/cp2k/cp2k/releases/download/v8.2.0/cp2k-8.2.tar.bz2
+mkdir -pv /apps/cp2k
+tar -vxf cp2k-8.2.tar.bz2 -C /apps/cp2k
+cd /apps/cp2k/cp2k-8.2/tools/toolchain
+# ./install_cp2k_toolchain.sh  --with-mkl=system --with-libint --with-intelmpi=system --with-cmake=system --mpi-mode=intelmpi --no-check-certificate --math-mode=mkl --with-sirius=no
+cd /apps/cp2k/cp2k-8.2
+sed -i 's/DFLAGS   += -D__SCALAPACK/DFLAGS   += -D__SCALAPACK -D__LIBINT/g' arch/Linux-x86-64-intel-minimal.psmp
+sed -i 's/FCFLAGS  += -I$(MKLROOT)\/include\/fftw/FCFLAGS  += -I$(MKLROOT)\/include\/fftw -I\/usr\/local\/include/g' arch/Linux-x86-64-intel-minimal.psmp
+sed -i 's/LIBS     += -Wl,--end-group/LIBS     += -Wl,--end-group -L\/usr\/local\/lib -lint2 -lstdc++/g' arch/Linux-x86-64-intel-minimal.psmp
+sed -i 's/fopenmp/qopenmp/g' arch/Linux-x86-64-intel-minimal.psmp
+make ARCH=Linux-x86-64-intel-minimal VERSION="psmp"
+EOF
+
+%environment
+export PATH=/apps/cp2k/cp2k-8.2/exe/Linux-x86-64-intel-minimal:$PATH
+
+%runscript
+bash << EOF2
+source /opt/intel/oneapi/setvars.sh --force
+$@
+EOF2
+

@@ -1,0 +1,54 @@
+# OpenSees
+# https://opensees.berkeley.edu/
+# OpenSeesMP and OpenSeespy
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 10/2023
+
+FROM ubuntu:22.04
+
+RUN apt-get update  \
+    &&  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc gfortran python3-dev binutils libc6-dev gpg-agent gnupg curl  ca-certificates git python3-pip cmake ninja-build g++ make tk-dev tcl tcl-dev \
+    && curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | apt-key add - \
+    && echo "deb [trusted=yes] https://apt.repos.intel.com/oneapi all main " > /etc/apt/sources.list.d/oneAPI.list \
+    && apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      intel-basekit  intel-hpckit \
+    && rm -rf /var/lib/apt/lists/*  \
+    && apt-get remove -y curl ; apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+
+RUN bash -c "source /opt/intel/oneapi/setvars.sh \
+  && git clone --depth 1 --branch hdf5-1_12_2 https://github.com/HDFGroup/hdf5.git \
+  && cd hdf5 ; mkdir build \
+  &&  cd build  \
+  && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local \
+  && make ; make install "
+
+RUN bash -c "source /opt/intel/oneapi/setvars.sh ; cd /tmp ; git clone https://github.com/OpenSees/mumps.git \
+  && cd mumps ; mkdir build \
+  && cd build \
+  && cmake .. -Darith=d -DCMAKE_MSVC_RUNTIME_LIBRARY=\"MultiThreaded\" -G Ninja \
+  && cmake --build .  \
+  && cmake --install . "
+
+RUN bash -c "source /opt/intel/oneapi/setvars.sh ;  cd /tmp \
+   && git clone https://github.com/OpenSees/OpenSees.git ; cd OpenSees \ 
+   && git checkout v3.5.0 \ 
+   && mkdir build ; cd build \
+   && pip install conan==1.59.0 "
+
+RUN bash -c "source /opt/intel/oneapi/setvars.sh ;  cd /tmp \
+   && git clone https://github.com/OpenSees/OpenSees.git ; cd OpenSees \ 
+   && git checkout v3.5.0 \ 
+   && mkdir build ; cd build \
+   && pip install conan==1.59.0 \
+   && conan install .. --build missing \
+    && cmake ..   -DMUMPS_DIR=/usr/local/lib   -DSCALAPACK_LIBRARIES=\"\$MKLROOT/lib/intel64/libmkl_scalapack_ilp64.so;\$MKLROOT/lib/intel64/libmkl_blacs_intelmpi_ilp64.so;\$MKLROOT/lib/intel64/libmkl_intel_ilp64.so;\$MKLROOT/lib/intel64/libmkl_sequential.so;\$MKLROOT/lib/intel64/libmkl_core.so\" -DLAPACK_LIBRARIES=\"\$MKLROOT/lib/intel64/libmkl_scalapack_ilp64.so;\$MKLROOT/lib/intel64/libmkl_blacs_intelmpi_ilp64.so;\$MKLROOT/lib/intel64/libmkl_intel_ilp64.so;\$MKLROOT/lib/intel64/libmkl_sequential.so;\$MKLROOT/lib/intel64/libmkl_core.so\" \
+    && cmake --build . --config Release --target OpenSees  \
+    && cmake --build . --config Release --target OpenSeesMP \
+    && cmake --build . --config Release --target OpenSeesSP \ 
+    && mv bin/OpenSees /usr/local/bin \
+    && mv bin/OpenSeesMP /usr/local/bin \
+    && mv bin/OpenSeesSP /usr/local/bin "
+
+#ENTRYPOINT ["/bin/bash", "-c", "source /opt/intel/oneapi/setvars.sh --force && exec \"$@\""]
+

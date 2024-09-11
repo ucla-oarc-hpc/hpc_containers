@@ -1,0 +1,44 @@
+# OpenSees
+# https://opensees.berkeley.edu/
+# OpenSeesMP and OpenSeespy
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 10/2023
+
+FROM ubuntu:22.04
+
+RUN apt-get update  \
+    &&  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc gfortran python3-dev binutils libc6-dev gpg-agent gnupg curl  ca-certificates git python3-pip cmake ninja-build g++ make tk-dev tcl tcl-dev \
+    && curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | apt-key add - \
+    && echo "deb [trusted=yes] https://apt.repos.intel.com/oneapi all main " > /etc/apt/sources.list.d/oneAPI.list \
+    && apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      intel-basekit  intel-hpckit \
+    && rm -rf /var/lib/apt/lists/*  \
+    && apt-get remove -y curl ; apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+
+
+RUN apt-get update -y \
+ &&  DEBIAN_FRONTEND=noninteractive apt-get -y install git cmake gcc g++ gfortran python3-pip liblapack-dev libopenmpi-dev libmkl-rt libmkl-blacs-openmpi-lp64 libscalapack-openmpi-dev
+
+#RUN git clone https://github.com/OpenSees/mumps.git \
+#    && cd mumps ; mkdir build ; cd build \
+#    && cmake .. -Darith=d \
+#    && cmake --build . --config Release --parallel 4 \
+#    && cd ../..
+
+RUN git clone --depth 1 --branch hdf5-1_12_2 https://github.com/HDFGroup/hdf5.git \
+    && cd hdf5 \
+    && ./configure --prefix=/usr/local/hdf5 \
+    && make ; make install \
+    && pip3 install conan==1.59.0
+
+RUN git clone https://github.com/OpenSees/OpenSees.git \
+    && cd OpenSees \
+    && mkdir build ; cd build \
+    && conan install .. --build missing \
+cmake .. -DMUMPS_DIR=/mumps/build -DOPENMPI=TRUE -DSCALAPACK_LIBRARIES="/usr/lib/x86_64-linux-gnu/libmkl_blacs_openmpi_lp64.so;/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so.2.1" \
+cmake --build . --config Release --target OpenSees \
+cmake --build . --config Release --target OpenSeesPy
+cmake --build . --config Release --target OpenSeesMP
+cmake --build . --config Release --target OpenSeesSP
+mv ./lib/OpenSeesPy.so ./opensees.so

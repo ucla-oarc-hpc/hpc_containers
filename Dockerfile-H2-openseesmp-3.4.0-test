@@ -1,0 +1,30 @@
+# OpenSees
+# https://opensees.berkeley.edu/
+# OpenSeesMP and OpenSeespy
+# # Charles Peterson <cpeterson@oarc.ucla.edu>
+# # Created 8/2022
+FROM oarcrtg/h2-build:ubuntu20.04-gcc8.5.0-oneapi2022.1.2 as build
+
+RUN bupLD=$LD_LIBRARY_PATH ; unset LD_LIBRARY_PATH ; apt-get update  \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    vim less python-dev python3-pip libhdf5-dev git libmysqlclient-dev tcl-dev make gcc-multilib tk-dev flex bison libbz2-dev zlib1g \
+    && export LD_LIBRARY_PATH=$bupLD
+
+RUN pip3 install conan
+
+RUN cd /tmp ; git clone https://github.com/OpenSees/OpenSees \
+    && cd OpenSees ; git checkout 727614366c47e71c32448825abb7895543c4631b \
+    && mkdir build ; cd build \
+    m& sed -i 's/\${MKL_LIBRARIES}/"-L\/opt\/intel\/oneapi\/mkl\/2022.0.2\/lib\/intel64 -lmkl_rt  -lmkl_blas95_ilp64 -lmkl_lapack95_ilp64 -lmkl_scalapack_ilp64 -lmkl_intel_ilp64 -lmkl_sequential -lmkl_blacs_intelmpi_ilp64 -lpthread -lm"/g' ../CMakeLists.txt \
+    && conan install .. --build missing \
+    && FC=mpif90 CC=mpicc CXX=mpicxx FL=mpif90  cmake .. -DBLA_STATIC=ON -DCMAKE_INSTALL_PREFIX=/apps/opensees \
+    && cmake --build . --config Release --target OpenSeesMP
+
+
+#
+#FROM oarcrtg/h2-run:ubuntu20.04-gcc8.5.0-oneapi2022.1.2
+#RUN apt update ; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zlib1g libtcl8.6 \
+#    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /apps/  /apps/
+ENV PATH=/apps/opensees/bin:$PATH
+

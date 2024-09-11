@@ -13,6 +13,7 @@ RUN apt update \
         tcl-dev tk-dev \
         libgsl-dev \
         libudunits2-dev \
+        libproj-dev libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV R_VER="4.1.0"

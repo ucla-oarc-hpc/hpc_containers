@@ -1,0 +1,125 @@
+Bootstrap: docker
+From: docker.io/rockylinux:8
+Stage: devel
+
+%post
+yum update -y  
+yum install -y file time gcc gcc-c++ gcc-gfortran git  wget make cmake libcurl-devel zlib-devel m4 
+
+tee > /tmp/oneAPI.repo << EOF
+[oneAPI]
+name=Intel® oneAPI repository
+baseurl=https://yum.repos.intel.com/oneapi
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+EOF
+
+mv /tmp/oneAPI.repo /etc/yum.repos.d
+
+yum update -y \
+    && yum install -y  \
+       intel-basekit-2023.1.0  intel-hpckit-2023.1.0
+
+mkdir -pv /apps
+mkdir -pv /build
+cd /build
+
+wget https://www.python.org/ftp/python/3.9.10/Python-3.9.10.tgz 
+tar -vxf Python-3.9.10.tgz ; rm Python-3.9.10.tgz  
+cd Python-3.9.10 ; ./configure --enable-shared --prefix=/apps/python 
+make ; make install 
+export LD_LIBRARY_PATH=/apps/python/lib:/apps/lammps/lib:$LD_LIBRARY_PATH
+export PATH=/apps/python/bin:/apps/lammps/bin:$PATH
+
+cd /build
+
+wget https://github.com/lammps/lammps/archive/refs/tags/stable_29Sep2021_update2.tar.gz 
+wget https://github.com/lammps/lammps/releases/download/stable_2Aug2023/lammps-linux-x86_64-2Aug2023.tar.gz
+wget https://github.com/lammps/lammps/archive/refs/tags/stable_2Aug2023.tar.gz
+tar -vxf stable_2Aug2023.tar.gz
+cd lammps-stable_2Aug2023 ; mkdir build ; cd build 
+
+cat > lammps-cmake << EOF
+set(CMAKE_CXX_COMPILER "icpc" CACHE STRING "" FORCE)
+set(CMAKE_C_COMPILER "icc" CACHE STRING "" FORCE)
+set(CMAKE_Fortran_COMPILER "ifort" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-Wall -Wextra -g -O2 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_Fortran_FLAGS_DEBUG "-Wall -Wextra -g" CACHE STRING "" FORCE)
+set(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "-Wall -Wextra -g -O2 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-Wall -Wextra -g -O2 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+
+set(MPI_CXX "icpc" CACHE STRING "" FORCE)
+set(MPI_CXX_COMPILER "mpicxx" CACHE STRING "" FORCE)
+
+unset(HAVE_OMP_H_INCLUDE CACHE)
+set(OpenMP_C "icc" CACHE STRING "" FORCE)
+set(OpenMP_C_FLAGS "-qopenmp -qopenmp-simd" CACHE STRING "" FORCE)
+set(OpenMP_C_LIB_NAMES "omp" CACHE STRING "" FORCE)
+set(OpenMP_CXX "icpc" CACHE STRING "" FORCE)
+set(OpenMP_CXX_FLAGS "-qopenmp -qopenmp-simd" CACHE STRING "" FORCE)
+set(OpenMP_CXX_LIB_NAMES "omp" CACHE STRING "" FORCE)
+set(OpenMP_Fortran_FLAGS "-qopenmp -qopenmp-simd" CACHE STRING "" FORCE)
+set(OpenMP_omp_LIBRARY "libiomp5.so" CACHE PATH "" FORCE)
+
+set(ALL_PACKAGES EXTRA-PAIR ASPHERE BODY CLASS2 COLLOID COMPRESS CORESHELL DIPOLE 
+        GRANULAR KSPACE MANYBODY MC MISC MLIAP MOLECULE OPT PERI 
+        POEMS PYTHON QEQ REPLICA RIGID SHOCK SNAP SPIN SRD 
+        USER-BOCS USER-CGDNA USER-CGSDK USER-COLVARS USER-DIFFRACTION 
+        USER-DPD USER-DRUDE USER-EFF USER-FEP USER-MEAMC USER-MESODPD 
+        USER-MISC USER-MOFFF USER-OMP USER-PHONON USER-REACTION 
+        USER-REAXC USER-SDPD USER-SPH USER-SMD USER-UEF USER-YAFF) 
+foreach(PKG \${ALL_PACKAGES}) 
+set(PKG_\${PKG} ON CACHE BOOL "" FORCE) 
+endforeach() 
+EOF
+
+mv -f lammps-cmake ../cmake/presets/intel.cmake
+bash -c "
+source /opt/intel/oneapi/setvars.sh
+cd /build/lammps-stable_2Aug2023/build
+cmake -C ../cmake/presets/intel.cmake -D BUILD_MPI=yes -D BUILD_OMP=yes -D LAMMPS_MACHINE=mpi -DCMAKE_CXX_COMPILER=icpc -DCMAKE_C_COMPILER=icc -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_INSTALL_PREFIX=/apps/lammps ../cmake 
+make ; make install 
+
+"
+
+Bootstrap: docker
+From: docker.io/rockylinux:8
+Stage: runtime
+
+%post
+yum update -y
+yum install -y python3 file  gcc gcc-c++ gcc-gfortran zlib-devel
+
+
+tee > /tmp/oneAPI.repo << EOF
+[oneAPI]
+name=Intel® oneAPI repository
+baseurl=https://yum.repos.intel.com/oneapi
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+EOF
+
+mv /tmp/oneAPI.repo /etc/yum.repos.d
+yum update -y \
+    && yum install -y  \
+       intel-basekit-runtime-2023.1.0  intel-hpckit-runtime-2023.1.0
+
+%files from devel
+  /apps  /apps
+
+%environment
+export LD_LIBRARY_PATH=/apps/python/lib:/apps/lammps/lib:$LD_LIBRARY_PATH
+export PATH=/apps/python/bin:/apps/lammps/bin:$PATH
+
+%runscript
+exec bash -c "source /opt/intel/oneapi/setvars.sh --force
+$@"

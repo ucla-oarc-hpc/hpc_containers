@@ -1,0 +1,26 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install supporting packages
+RUN apt-get update -y \ 
+    && apt-get install -yq --no-install-recommends \
+    wget libreadline-dev ca-certificates cmake make pkg-config zlib1g zlib1g-dev openssl gnupg2 g++ gfortran gcc libnetcdf-dev csh libnetcdff-dev 
+
+RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor |  tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+
+RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+RUN apt update -y ;  apt install -y intel-basekit intel-hpckit
+
+RUN bash -c "source /opt/intel/oneapi/setvars.sh \
+    && wget http://rossby.msrc.sunysb.edu/~marat/SAM/sam6.11.8.tar.gz \ 
+    && tar -vxf sam6.11.8.tar.gz \
+    && cd SAM6.11.8 ; export SAM_SCR=$PWD ; export LIB_NETCDF=/usr/lib ; export INC_NETCDF=/usr/include \
+    && export I_MPI_F77=ifx ; export I_MPI_F90=ifx \
+    && sed -i 's/ -extend_source/ -extend-source/g' Makefile \
+    && ./Build " 
+
+ENV PATH=/SAM6.11.8:$PATH
+
+ENTRYPOINT ["/bin/bash", "-c", "source /opt/intel/oneapi/setvars.sh --force && exec \"$@\""]

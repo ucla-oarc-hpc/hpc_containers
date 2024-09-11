@@ -1,0 +1,70 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%post
+DEBIAN_FRONTEND=noninteractive
+# Install supporting packages
+apt-get update   
+apt-get install -yq --no-install-recommends wget libreadline-dev ca-certificates cmake make pkg-config zlib1g zlib1g-dev openssl gnupg2 g++ gfortran gcc  csh libxml2-dev m4 curl libcurl4-gnutls-dev git
+
+wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor |  tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+apt update -y ;  apt install -y intel-basekit intel-hpckit
+
+bash -c "
+source /opt/intel/oneapi/setvars.sh
+
+mkdir -pv /build
+mkdir -pv /apps
+
+# Install HDF5
+cd /build
+git clone https://github.com/HDFGroup/hdf5
+cd hdf5
+git checkout hdf5-1_14_1
+CC=icx CXX=icpx FC=ifx F77=ifx F90=ifx ./configure --with-zlib --prefix=/apps/hdf5
+make && make install  
+
+export LD_LIBRARY_PATH=/apps/hdf5/lib:\$LD_LIBRARY_PATH
+export CPATH=/apps/hdf5/include:\$CPATH
+export PATH=/apps/hdf5/bin:\$PATH
+
+# Install NetCDF-C
+export NETCDF_classic=1
+cd /build
+git clone https://github.com/Unidata/netcdf-c
+cd netcdf-c
+git checkout v4.7.2
+CC=icx CXX=icpx FC=ifx F77=ifx F90=ifx CPPFLAGS=\"-I/apps/hdf5/include -I/usr/include\" LDFLAGS=\"-L/apps/hdf5/lib -L/usr/lib\" ./configure --prefix=/apps/netcdf
+make && make install
+
+export NETCDF=/apps/netcdf
+export PATH=\${NETCDF}/bin:\$PATH
+export CPATH=\${NETCDF}/include:\$CPATH
+export LD_LIBRARY_PATH=\${NETCDF}/lib:\$LD_LIBRARY_PATH
+
+# Install NetCDF-Fortran
+cd /build
+git clone https://github.com/Unidata/netcdf-fortran
+cd netcdf-fortran
+git checkout v4.5.2 
+CC=icx CXX=icpx FC=ifx F77=ifx F90=ifx LDFLAGS=\"-L/apps/netcdf/lib -L/usr/lib\" CPPFLAGS=\"-I/usr/include -I/apps/netcdf/include\" ./configure --prefix=/apps/netcdf
+make && make install
+"
+
+%environment
+export NETCDF=/apps/netcdf
+export PATH=${NETCDF}/bin:$PATH
+export CPATH=${NETCDF}/include:$CPATH
+export LD_LIBRARY_PATH=${NETCDF}/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/apps/hdf5/lib:$LD_LIBRARY_PATH
+export CPATH=/apps/hdf5/include:$CPATH
+export PATH=/apps/hdf5/bin:$PATH
+
+%runscript
+#!/bin/bash
+source /opt/intel/oneapi/setvars.sh --force
+exec "$@"
+
