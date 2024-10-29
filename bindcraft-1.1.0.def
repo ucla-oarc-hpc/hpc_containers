@@ -1,0 +1,24 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%post
+DEBIAN_FRONTEND=noninteractive
+apt-get update 
+apt-get install -yq  wget ca-certificates git gcc g++ 
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+bash Miniforge3-Linux-x86_64.sh -b -p /apps/miniforge
+bash -c "source /apps/miniforge/etc/profile.d/conda.sh
+git clone https://github.com/martinpacesa/BindCraft
+cd BindCraft
+git checkout v1.1.0
+sed -i '67,75d' install_bindcraft.sh
+bash install_bindcraft.sh --cuda '12.4' --pkg_manager 'conda'
+"
+
+%environment
+
+%runscript
+exec bash -c "source /apps/miniforge/etc/profile.d/conda.sh
+conda activate BindCraft
+$@"
+
