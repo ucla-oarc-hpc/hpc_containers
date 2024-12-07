@@ -1,0 +1,24 @@
+FROM oarcrtg/h2-build:ubuntu20.04-gcc10.3.0-oneapi2022.1.2 as buildnwchem
+FROM docker.io/rockylinux:9.3
+
+RUN dnf -y install ; dnf install -y procps
+RUN mkdir -pv /apps
+COPY ArcGIS_Enterprise_Builder_Linux_110_183020.tar.gz /apps
+RUN cd /apps ; tar -vxf ArcGIS_Enterprise_Builder_Linux_110_183020.tar.gz ; cd EnterpriseBuilder/ 
+
+RUN /usr/sbin/useradd --create-home --home-dir /usr/local/arcgis --shell /bin/bash arcgis
+
+RUN chown -R arcgis /apps && chmod -R 700 /apps && \
+    chown -R arcgis /usr/local/arcgis && chmod -R 700 /usr/local/arcgis
+
+USER arcgis
+
+ENV HOME /usr/local/arcgis
+
+EXPOSE 4000 4001 4002 4003 6080 6443
+
+RUN /apps/EnterpriseBuilder/Setup -m silent -l yes
+
+# execute the init script.
+#CMD ["/bin/bash", "/apps/init.sh"]
+

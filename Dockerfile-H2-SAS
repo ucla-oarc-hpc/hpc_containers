@@ -1,4 +1,4 @@
-FROM rockylinux:9.4
+FROM rockylinux:8.9
 # Install libraries and clean all
 RUN dnf update ; dnf -y install numactl-libs.x86_64 \
  passwd \
@@ -6,7 +6,7 @@ RUN dnf update ; dnf -y install numactl-libs.x86_64 \
  libpng \
  libXmu.x86_64 \
  java-11-openjdk java-11-openjdk-devel \
- libpng-devel libxcrypt-compat firefox expect tree
+ libpng-devel libpng12 firefox expect
 RUN dnf update -y
 
 # Add group
@@ -29,7 +29,7 @@ RUN cd /Linux_64bit ; expect SASsetup.exp
 EXPOSE 38080
 
 ENV PATH=/usr/local/SASHome/SASFoundation/9.4:/usr/local/SASHome/SASFoundation/9.4/bin:$PATH
-RUN cd / ; rm -rf /Linux_64bit ; rm -rf SAS94_Linux_64bit_TR.tar.gz
+#RUN cd / ; rm -rf /Linux_64bit ; rm -rf SAS94_Linux_64bit_TR.tar.gz
 # Add startup script to start SAS Studio
 #ADD startup.sh /
 #ENTRYPOINT [“/startup.sh”]

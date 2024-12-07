@@ -1,0 +1,69 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%post
+# Set environment variable to suppress prompts
+export SINGULARITY_SHELL=/bin/bash
+export APPTAINER_SHELL=/bin/bash
+DEBIAN_FRONTEND=noninteractive
+    # Install required packages
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        wget tcsh bash \
+        libreadline-dev \
+        ca-certificates \
+        cmake \
+        make \
+        pkg-config \
+        zlib1g \
+        zlib1g-dev \
+        openssl \
+        gnupg2 \
+        g++ \
+        gfortran \
+        gcc \
+        vim \
+        less \
+        libxml2-dev \
+        m4 \
+        curl \
+        libcurl4-gnutls-dev \
+        git \
+        python3-dev \
+        nodejs \
+        npm  \
+        python3-pip
+
+
+    # Download and install the CUDA repository key
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb && \
+    rm cuda-keyring_1.1-1_all.deb
+
+    # Update after adding CUDA repository
+    apt-get update
+
+    # Install specific CUDA toolkit version to avoid driver issues
+    apt-get install -y --no-install-recommends cuda-toolkit-11-8 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+export PATH=/usr/local/cuda/bin:${PATH}
+export LD_LIBRARY_PATH=/usr/local/cuda-12.2/lib64:${LD_LIBRARY_PATH}
+
+pip install batchspawner jupyter-ai[all] numpy pandas scikit-learn matplotlib tensorflow[and-cuda] openai llama-cpp-python flask torch torchvision torchaudio gpt4all==2.3.2 jupyterhub jupyterlab notebook 
+ln -s /usr/bin/python3 /usr/bin/python
+npm install -g configurable-http-proxy
+curl -fsSL https://ollama.com/install.sh | sh
+
+%environment
+export SINGULARITY_SHELL=/bin/bash
+export APPTAINER_SHELL=/bin/bash
+export SHELL=/bin/bash
+export PATH=/usr/local/cuda/bin:${PATH}
+export LD_LIBRARY_PATH=/usr/local/cuda-12.2/lib64:${LD_LIBRARY_PATH}
+
+%runscript
+
+
+

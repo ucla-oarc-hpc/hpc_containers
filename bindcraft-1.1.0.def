@@ -4,7 +4,7 @@ From: ubuntu:24.04
 %post
 DEBIAN_FRONTEND=noninteractive
 apt-get update 
-apt-get install -yq  wget ca-certificates git gcc g++ 
+apt-get install -yq  wget ca-certificates git gcc g++ gfortran 
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
 bash Miniforge3-Linux-x86_64.sh -b -p /apps/miniforge
 bash -c "source /apps/miniforge/etc/profile.d/conda.sh
