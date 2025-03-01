@@ -2,7 +2,7 @@
 #
 # # Charles Peterson <cpeterson@oarc.ucla.edu>
 # # Created 3/2022
-FROM rocker/rstudio:4.0.5
+FROM docker.io/rocker/rstudio:4.0.5
 RUN apt update ; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config zlib1g-dev openssl libssl-dev wget make git vim less libxt6
 
 RUN apt update \
@@ -15,6 +15,5 @@ ENV R_VER="4.0.5"
 RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_4.0.5" > /etc/rstudio/rsession.conf
 RUN mkdir -pv /apps/rstudio
 COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
-RUN chmod 755 /apps/rstudio/rstudio-startup.sh
-ENTRYPOINT /apps/rstudio/rstudio-startup.sh
+ENTRYPOINT ["/apps/rstudio/rstudio-startup.sh"]
 

@@ -20,6 +20,5 @@ ENV R_VER="4.1.0"
 RUN echo "r-libs-user=~/R/APPTAINER/h2-rstudio_4.1.0" > /etc/rstudio/rsession.conf
 RUN mkdir -pv /apps/rstudio
 COPY ./rstudio-startup.sh /apps/rstudio/rstudio-startup.sh
-RUN chmod 755 /apps/rstudio/rstudio-startup.sh
-ENTRYPOINT /apps/rstudio/rstudio-startup.sh
+ENTRYPOINT ["/apps/rstudio/rstudio-startup.sh"]
 

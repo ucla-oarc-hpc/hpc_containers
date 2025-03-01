@@ -1,0 +1,38 @@
+Bootstrap: docker
+From: docker.io/rockylinux:9.3
+
+%files
+    ArcGIS_Enterprise_Builder_Linux_110_183020.tar.gz /apps/ArcGIS_Enterprise_Builder_Linux_110_183020.tar.gz
+    EducationSiteArcGISServerEnterprise_ArcGISServer_1499454.prvc /apps/EducationSiteArcGISServerEnterprise_ArcGISServer_1499454.prvc
+%post
+    # Install necessary packages
+    dnf -y install procps ncurses xorg-x11-server-Xvfb wget
+
+   wget https://github.com/conda-forge/miniforge/releases/download/24.9.2-0/Miniforge3-24.9.2-0-Linux-x86_64.sh
+    sh Miniforge3-24.9.2-0-Linux-x86_64.sh -p /usr/local/miniforge -b
+    bash -c "source /usr/local/miniforge/etc/profile.d/conda.sh ; conda create -y -n myesri -c esri arcgis-server-py3=11.0"
+    # Create necessary directories and extract the ArcGIS installer
+    mkdir -pv /apps
+    cd /apps
+    tar -vxf ArcGIS_Enterprise_Builder_Linux_110_183020.tar.gz
+    cd EnterpriseBuilder/
+
+    # Create arcgis user
+    /usr/sbin/useradd --create-home --home-dir /usr/local/arcgis --shell /bin/bash arcgis
+
+    chown -R arcgis /apps
+    chmod -R 700 /apps
+    chown -R arcgis /usr/local/arcgis
+    chmod -R 700 /usr/local/arcgis
+    su - arcgis -c "/apps/EnterpriseBuilder/Setup -m silent -l yes -s /apps/EducationSiteArcGISServerEnterprise_ArcGISServer_1499454.prvc"
+    rm -r /apps
+    sed -i '/install_owner_id=`stat -c %u $installDir | xargs`/ s/^/#/' /usr/local/arcgis/server/framework/etc/scripts/agsserver.sh
+    sed -i '/install_owner_name=`stat -c %U $installDir | xargs`/ s/^/#/' /usr/local/arcgis/server/framework/etc/scripts/agsserver.sh
+    sed -i '/verb=$1/ s/^/#/' /usr/local/arcgis/server/framework/etc/scripts/agsserver.sh
+    sed -i '/if \[ $install_owner_id -ne $CurrentUserID \]/,/# return 1/ s/^/#/' /usr/local/arcgis/server/framework/etc/scripts/agsserver.sh
+    chmod -R 777 /usr/local/arcgis/
+
+%environment
+    export HOME=/usr/local/arcgis
+
+
