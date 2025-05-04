@@ -1,0 +1,161 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+    set -ex # Exit on error, print commands
+
+    echo "Updating package lists and installing dependencies..."
+    apt-get update -yq && \
+    apt-get install -yq --no-install-recommends \
+        ca-certificates \
+        locales \
+        curl \
+        wget \
+        iproute2 \
+        bc \
+        gcc \
+        g++ \
+        git \
+        make \
+        cmake \
+        libcurl4-openssl-dev \
+        zlib1g-dev \
+        m4 \
+        libssl-dev \
+        libffi-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+        liblzma-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+
+    # --- Coder Installation ---
+    CODER_VERSION="4.99.4"
+    CODER_ARCH="amd64"
+    CODER_TARBALL="code-server-${CODER_VERSION}-linux-${CODER_ARCH}.tar.gz"
+    CODER_URL="https://github.com/coder/code-server/releases/download/v${CODER_VERSION}/${CODER_TARBALL}"
+    CODER_INSTALL_DIR="/apps/code-server" # Target directory
+
+    mkdir -pv "${CODER_INSTALL_DIR}"
+    wget -qO- "${CODER_URL}" | tar -xvz -C "${CODER_INSTALL_DIR}" --strip-components=1
+
+
+
+
+%environment
+export LANG=en_US.UTF-8
+export PATH=/apps/code-server/bin:$PATH
+
+%runscript
+    #!/bin/bash
+    set -e # Exit immediately if a command exits with a non-zero status.
+
+    # --- Define Colors (only if output is a terminal) ---
+    if [[ -t 1 ]]; then
+      GREEN='\033[1;32m'  # Bold Green
+      YELLOW='\033[1;33m' # Bold Yellow
+      BLUE='\033[1;34m'   # Bold Blue
+      RED='\033[1;31m'     # Bold Red
+      CYAN='\033[1;36m'    # Bold Cyan
+      NC='\033[0m'        # No Color
+    else
+      GREEN=''
+      YELLOW=''
+      BLUE=''
+      RED=''
+      CYAN=''
+      NC=''
+    fi
+    export USER="$(whoami)"
+    export HOST="$(hostname)"
+    # --- Print Header ---
+    echo -e "${BLUE}-------------------------------------------------${NC}"
+    echo -e "${BLUE} Starting  Coder Server Instance     ${NC}"
+    echo -e "${BLUE}-------------------------------------------------${NC}"
+
+    # --- Configuration ---
+    # Allow overriding the starting port via environment variable
+    START_PORT="${CODER_PORT_START:-8081}"
+    MAX_PORT_ATTEMPTS=100 # Limit how many ports to try
+
+    # --- Find Available Port ---
+    echo -e "${YELLOW}Searching for an available port starting from ${START_PORT}...${NC}"
+    port=${START_PORT}
+    found_port=""
+    for (( i=0; i<${MAX_PORT_ATTEMPTS}; i++ )); do
+        # Check if the port is in use (listening) using ss
+        # -H: No header row
+        # -l: Display listening sockets
+        # -t: Display TCP sockets
+        # -n: Do not resolve service names (show port number)
+        # Check if output is empty (port not listening)
+        if ! ss -Hltn "sport = :${port}" | grep -q LISTEN; then
+            found_port=${port}
+            echo -e "${GREEN}Using port: ${found_port}${NC}"
+            break
+        fi
+        # Increment port number if current one is busy
+        ((port++))
+    done
+
+    if [ -z "${found_port}" ]; then
+        echo -e "${RED}Error: Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts.${NC}"
+        echo -e "${RED}Last port checked: ${port}${NC}"
+        exit 1
+    fi
+
+    # --- Generate Secure Random Token ---
+    echo -e "${YELLOW}Generating a unique session token...${NC}"
+    # Use openssl for cryptographically strong random bytes, convert to hex
+    # 16 bytes = 32 hex characters
+    SESSION_TOKEN=$(openssl rand -hex 16)
+    if [ -z "${SESSION_TOKEN}" ]; then
+        echo -e "${RED}Error: Failed to generate session token using openssl.${NC}"
+        # Fallback attempt (less secure if openssl failed badly)
+        SESSION_TOKEN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
+        if [ -z "${SESSION_TOKEN}" ]; then
+            echo -e "${RED}Error: Fallback token generation also failed.${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}Warning: Used fallback token generation method.${NC}"
+    fi
+    echo -e "${GREEN}Token generated successfully.${NC}"
+
+
+    # --- Construct Access URL ---
+    # Use 127.0.0.1 (localhost) as the server will likely be accessed
+    # via port forwarding from the compute node.
+    CODER_ACCESS_URL="http://127.0.0.1:${found_port}"
+
+    # --- Display Access Information ---
+    echo -e "\n${CYAN}===== Coder Access Information =====${NC}"
+    echo -e "${YELLOW}Access URL:${NC} ${GREEN}${CODER_ACCESS_URL}${NC}"
+    echo -e "${YELLOW}Session Token:${NC} ${GREEN}${SESSION_TOKEN}${NC}"
+    echo -e "${RED}Note:${NC} This token is valid only for this session. You will need it to log in."
+    echo -e "${CYAN}====================================${NC}\n"
+
+    echo -e "${BLUE}To access this Coder instance from your local machine:${NC}"
+    echo -e "1. Ensure you have an SSH connection to the HPC node running this container."
+    echo -e "2. Use SSH port forwarding:"
+    echo -e "   ${YELLOW}ssh -L ${found_port}:localhost:${found_port} -J ${USER}@hoffman2.idre.ucla.edu ${USER}@${HOST}${NC}"
+    echo -e "3. Open your web browser and navigate to: ${GREEN}${CODER_ACCESS_URL}${NC}"
+    echo -e "4. When prompted, enter the Session Token shown above."
+    echo -e "${BLUE}-------------------------------------------------${NC}\n"
+
+
+    echo -e "${BLUE}Launching coder server...${NC}"
+    export PASSWORD=${SESSION_TOKEN}
+    code-server  --bind-addr "127.0.0.1:${found_port}" 
+
+    # --- Post-Server Information (Optional) ---
+    SERVER_EXIT_CODE=$?
+    echo -e "\n${BLUE}-------------------------------------------------${NC}"
+    echo -e "${YELLOW}Coder server process exited with status: ${SERVER_EXIT_CODE}${NC}"
+    echo -e "${BLUE}-------------------------------------------------${NC}"
+
+    exit ${SERVER_EXIT_CODE}
+
