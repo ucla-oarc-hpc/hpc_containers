@@ -1,0 +1,168 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/cuda:12.2.2-cudnn8-devel-ubuntu22.04
+
+%post
+    set -ex
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -yq
+
+    apt-get install --no-install-recommends -y \
+        build-essential \
+        vim cmake \
+        bc \
+        iproute2 \
+        git \
+        curl \
+        wget \
+        libcurl4-openssl-dev \
+        m4 \
+        pkg-config \
+        libssl-dev \
+        zlib1g-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        xz-utils \
+        tk-dev \
+        llvm \
+        libxml2-dev \
+        libxmlsec1-dev \
+        libffi-dev \
+        liblzma-dev \
+        python3 \
+        python3-pip \
+        unzip \
+        zip jq util-linux \
+        software-properties-common
+
+    wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz
+    rm -rf /usr/local/go && tar -C /usr/local -xzf go1.24.1.linux-amd64.tar.gz
+    export PATH=$PATH:/usr/local/go/bin
+    mkdir -pv /apps
+    cd /apps
+    git clone https://github.com/charliecpeterson/ollama
+    cd ollama
+    git checkout maxthreads-add
+    cmake -B build
+    cmake --build build
+    go build -o ollama .
+
+    export WEBUI_VERSION="0.6.2"
+
+    wget https://www.python.org/ftp/python/3.11.11/Python-3.11.11.tgz
+    tar -vxf Python-3.11.11.tgz && rm Python-3.11.11.tgz
+    cd Python-3.11.11
+    ./configure --enable-optimizations --enable-shared
+    make
+    make altinstall
+
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+    python3.11 -m compileall -q -f /usr/local/lib/python3.11/site-packages || true
+
+    find /usr/local/lib/python3.11 -type d -name test -exec rm -rf {} +
+    ln -s /usr/local/bin/pip3.11 /usr/local/bin/pip3
+    ln -s /usr/local/bin/python3.11 /usr/local/bin/python3
+    ln -sf /usr/local/lib/libpython3.11.so /usr/lib/libpython3.11.so
+
+    pip3 install --no-cache-dir open-webui==${WEBUI_VERSION}
+    pip3 install --no-cache-dir jupyterlab jupyter-ai[all] pandas matplotlib seaborn
+    pip3 install --no-cache-dir openai langchain langchain_openai langchain-community langchain_ollama Faker faiss-cpu chromadb langchain-chroma
+    pip3 install --no-cache-dir llama-index llama-index-embeddings-ollama llama-index-llms-ollama
+    pip3 install --no-cache-dir transformers torch torchvision lmdeploy litellm pinecone
+    pip3 install --no-cache-dir sentence-transformers scikit-learn tqdm ipython datasets
+    pip3 install --no-cache-dir docx2txt PyPDF2 unstructured duckduckgo-search
+
+    apt-get clean -yq
+    rm -rf /var/lib/apt/lists/*
+
+%test
+    ollama --help
+
+%environment
+    export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:/apps/lib/ollama:$LD_LIBRARY_PATH
+    export PYTHONHOME=/usr/local
+    export PYTHONPATH=/usr/local/lib/python3.11
+    export PATH=$PATH:/usr/local/go/bin:/apps/ollama
+
+%runscript
+#!/bin/bash
+set -e
+
+ollama_port="${ollama_port:-11434}"
+while ss -tulpn 2>/dev/null | grep -q ":${ollama_port}"; do
+    ollama_port=$((ollama_port + 1))
+done
+
+if [ "$NSLOTS" -eq 1 ]; then
+  echo "request more than 1 core"
+  exit 1
+fi
+
+export OLLAMA_NUM_PARALLEL=1
+export OLLAMA_MAX_THREADS=$((NSLOTS - 1))
+export OLLAMA_PORT=$ollama_port
+export HOST=$(hostname)
+export OLLAMA_HOST="127.0.0.1:${OLLAMA_PORT}"
+
+if [ -z "${OLLAMA_MODELS}" ]; then
+    export OLLAMA_MODELS="$SCRATCH/ollama_models"
+    mkdir -pv "$OLLAMA_MODELS"
+fi
+
+echo -e "OLLAMA Running on ${HOST} with port ${OLLAMA_PORT}"
+echo "OLLAMA_MODELS is $OLLAMA_MODELS"
+export OLLAMA_BASE_URL="http://${OLLAMA_HOST}"
+echo "${OLLAMA_BASE_URL}"
+
+if [ $# -eq 0 ] || [ "$1" == "openwebui" ] || [ "$1" == "jupyter" ]; then
+    echo "Starting ollama"
+    ollama serve &
+
+    echo "Waiting for Ollama to become available..."
+    for i in {1..10}; do
+        if curl -s http://localhost:${OLLAMA_PORT}/api/tags > /dev/null; then
+            echo "Ollama is up!"
+            break
+        fi
+        sleep 1
+    done
+
+#    MODEL_NAME=$(ollama list | awk 'NR==2 {print $1}' | sed 's/:/./g')
+    MODEL_NAME=$(ollama list | awk 'NR==2 {print $1}' )
+    ollama list
+    echo "Model_NAME is ${MODEL_NAME}"
+    if [ -z "$MODEL_NAME" ]; then
+        echo "No models found. Pulling llama3.2:3b..."
+        ollama pull llama3.2:3b
+        MODEL_NAME="llama3.2:3b"
+    fi
+
+    if [ "$1" == "openwebui" ]; then
+        if [ -z "${DATA_DIR}" ]; then
+            export DATA_DIR="$HOME/webui/data"
+            mkdir -pv "$DATA_DIR"
+        fi
+        webui_port="${webui_port:-8081}"
+        while ss -tulpn 2>/dev/null | grep -q ":${webui_port}"; do
+            webui_port=$((webui_port + 1))
+        done
+        echo "Running Open WebUI with port ${webui_port}"
+        open-webui serve --port ${webui_port} &
+    elif [ "$1" == "jupyter" ]; then
+        jupyter_port="${jupyter_port:-8888}"
+        while ss -tulpn 2>/dev/null | grep -q ":${jupyter_port}"; do
+            jupyter_port=$((jupyter_port + 1))
+        done
+        echo "Starting Jupyter Lab on port ${jupyter_port}"
+        jupyter lab --ip=0.0.0.0 --port=${jupyter_port} --no-browser --AiExtension.default_language_model=ollama:${MODEL_NAME} &
+    fi
+else
+    exec "$@"
+fi
+
+%help
+    This is a simple container for running Ollama on Hoffman2
